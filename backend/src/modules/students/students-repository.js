@@ -8,8 +8,41 @@ const getRoleId = async (roleName) => {
 }
 
 const findAllStudents = async (payload) => {
-    const { name, className, section, roll } = payload;
-    let query = `
+    const { name, className, section, roll, page = 1, limit = 10 } = payload;
+    const offset = (page - 1) * limit;
+    
+    let baseWhere = "WHERE t1.role_id = 3";
+    let queryParams = [];
+    
+    if (name) {
+        baseWhere += ` AND t1.name ILIKE $${queryParams.length + 1}`;
+        queryParams.push(`%${name}%`);
+    }
+    if (className) {
+        baseWhere += ` AND t3.class_name = $${queryParams.length + 1}`;
+        queryParams.push(className);
+    }
+    if (section) {
+        baseWhere += ` AND t3.section_name = $${queryParams.length + 1}`;
+        queryParams.push(section);
+    }
+    if (roll) {
+        baseWhere += ` AND t3.roll = $${queryParams.length + 1}`;
+        queryParams.push(roll);
+    }
+
+    // Count query
+    const countQuery = `
+        SELECT COUNT(*) as total
+        FROM users t1
+        LEFT JOIN user_profiles t3 ON t1.id = t3.user_id
+        ${baseWhere}`;
+    
+    const { rows: countRows } = await processDBRequest({ query: countQuery, queryParams: [...queryParams] });
+    const total = parseInt(countRows[0].total, 10);
+
+    // Data query with pagination
+    const dataQuery = `
         SELECT
             t1.id,
             t1.name,
@@ -18,29 +51,23 @@ const findAllStudents = async (payload) => {
             t1.is_active AS "systemAccess"
         FROM users t1
         LEFT JOIN user_profiles t3 ON t1.id = t3.user_id
-        WHERE t1.role_id = 3`;
-    let queryParams = [];
-    if (name) {
-        query += ` AND t1.name = $${queryParams.length + 1}`;
-        queryParams.push(name);
-    }
-    if (className) {
-        query += ` AND t3.class_name = $${queryParams.length + 1}`;
-        queryParams.push(className);
-    }
-    if (section) {
-        query += ` AND t3.section_name = $${queryParams.length + 1}`;
-        queryParams.push(section);
-    }
-    if (roll) {
-        query += ` AND t3.roll = $${queryParams.length + 1}`;
-        queryParams.push(roll);
-    }
-
-    query += ' ORDER BY t1.id';
-
-    const { rows } = await processDBRequest({ query, queryParams });
-    return rows;
+        ${baseWhere}
+        ORDER BY t1.id
+        LIMIT $${queryParams.length + 1} OFFSET $${queryParams.length + 2}`;
+    
+    queryParams.push(limit, offset);
+    
+    const { rows } = await processDBRequest({ query: dataQuery, queryParams });
+    
+    return {
+        data: rows,
+        pagination: {
+            page,
+            limit,
+            total,
+            totalPages: Math.ceil(total / limit)
+        }
+    };
 }
 
 const addOrUpdateStudent = async (payload) => {

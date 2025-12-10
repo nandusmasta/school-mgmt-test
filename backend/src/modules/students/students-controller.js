@@ -1,10 +1,17 @@
-﻿const asyncHandler = require("express-async-handler");
+const asyncHandler = require("express-async-handler");
 const { getAllStudents, addNewStudent, getStudentDetail, setStudentStatus, updateStudent } = require("./students-service");
 
 const handleGetAllStudents = asyncHandler(async (req, res) => {
-    const { name, className, section, roll } = req.query;
-    const students = await getAllStudents({ name, className, section, roll });
-    res.json({ students });
+    const { name, className, section, roll, page, limit } = req.query;
+    const result = await getAllStudents({
+        name,
+        className,
+        section,
+        roll,
+        page: page ? parseInt(page, 10) : 1,
+        limit: limit ? parseInt(limit, 10) : 10
+    });
+    res.json(result);
 });
 
 const handleAddStudent = asyncHandler(async (req, res) => {
